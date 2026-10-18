@@ -1,0 +1,99 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Building Studyspace with FalkorDB | Graph Hacks</title><meta name="description" content="How we built a graph-powered study planner with FalkorDB: prerequisite traversal, learner evidence, and plans students can inspect and approve."><meta property="og:title" content="From a learning goal to the next lesson — Studyspace × FalkorDB"><meta property="og:description" content="Our Graph Hacks build story, with real Cypher, architecture, and lessons learned."><meta property="og:image" content="assets/studyspace-cover.jpg"><style>*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#f6f3ed;color:#30332f;font:18px/1.8 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}nav{padding:19px max(24px,calc((100vw - 1100px)/2));display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd7cb;background:#fffdf8}nav a{font-weight:700;text-decoration:none;color:#30332f}nav .brand{font-size:25px;letter-spacing:-1px}.brand span{color:#b85f40}.tag{font:12px/1.4 ui-monospace,monospace;letter-spacing:1px;color:#866c55}.hero{max-width:1100px;margin:45px auto 0;padding:0 24px}.hero img{width:100%;display:block;border-radius:20px;border:1px solid #e0d8ca}.hero p{font-size:13px;color:#786e61;margin:10px 0}article{max-width:820px;margin:48px auto 80px;padding:0 28px}h1{font:clamp(35px,5vw,57px)/1.12 Georgia,serif;letter-spacing:-1.8px;color:#292d29;margin:0 0 22px}h2{font:700 27px/1.3 system-ui,sans-serif;letter-spacing:-.6px;margin:48px 0 16px}h1+h2{font-size:21px;font-weight:500;color:#a35b40;margin:0 0 15px;letter-spacing:0}p{margin:0 0 24px}a{color:#a54f33;text-underline-offset:4px;overflow-wrap:anywhere}a:hover{color:#64301f}strong{color:#293f35}li{margin-bottom:12px}pre{background:#24372e;color:#f3efe4;border-radius:14px;padding:24px;overflow:auto;font:13px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace;border:1px solid #384d40}article img{width:100%;border:1px solid #ded5c7;border-radius:12px}footer{border-top:1px solid #ddd7cb;padding:30px 24px;text-align:center;color:#776d60;font-size:14px}@media(max-width:600px){body{font-size:16px}nav{padding:16px 20px}.tag{font-size:10px;max-width:140px;text-align:right}.hero{margin-top:24px;padding:0 16px}article{padding:0 20px;margin-top:30px}h2{font-size:23px}pre{padding:16px;font-size:12px}}</style></head><body><nav><a class="brand" href="./">study<span>space</span> / build notes</a><span class="tag">GRAPH HACKS · POWERED BY FALKORDB</span></nav><header class="hero"><img src="assets/studyspace-cover.jpg" alt="Studyspace: your goal, your learning path. Powered by FalkorDB."><p>Our Graph Hacks build story · Working prototype · Open source</p></header><main><article><h1>From “I want to learn this” to “here’s your next lesson”</h1>
+<h2>Building Studyspace with FalkorDB at Graph Hacks</h2>
+<p>By Nimesh and the Studyspace team · October 18, 2026 · Build story</p>
+<p>You decide to learn something new. You find a tutorial, start watching, and five minutes later there is a term you have never seen before. So you open another tab. Then another.</p>
+<p>The problem is finding the right starting point. A list of resources helps only so much when you do not know which foundations you are missing.</p>
+<p>That is the problem we worked on with <strong>Studyspace</strong>, our submission for <strong>Graph Hacks: Context for AI Agents</strong>, organized by WeMakeDevs and sponsored by FalkorDB. We entered the <strong>Agents That Act on Connected Data</strong> track.</p>
+<p>Studyspace is a learning desk where a student can enter a goal, see the foundations behind it, approve a study plan, and continue with the next unfinished lesson. FalkorDB supplies the connected curriculum and persistent learner context that make that workflow possible.</p>
+<p><a href="https://youtu.be/HcYy9IaRaig">Watch the working demo</a> · <a href="https://github.com/wmd-graph-hacks/wmd_oct15">Explore the source code</a> · <a href="https://www.wemakedevs.org/hackathons/falkordb">Hackathon</a></p>
+<h2>Why we started with relationships</h2>
+<p>Take a goal like understanding KKT conditions for constrained optimization. The target has foundations across calculus, linear algebra, and optimization. Some students already understand those foundations. Others need to work through them first.</p>
+<p>A useful planner needs to answer several questions together:</p>
+<ul>
+<li>Which lessons lead to this goal?</li>
+<li>Which prerequisites has this learner already mastered?</li>
+<li>What remains, and in what order should it be studied?</li>
+<li>Which concepts hold up progress through the rest of the plan?</li>
+<li>Does the workload fit the available study time?</li>
+</ul>
+<p>Those are relationship questions. We represented the curriculum as a graph in FalkorDB, then built tools that retrieve and operate on those connections.</p>
+<p>The lesson text still matters. But the prerequisite edges explain why one lesson should come before another. That structure gives the agent a basis for a recommendation that we can inspect.</p>
+<h2>What actually lives in FalkorDB</h2>
+<p>Studyspace has a shared curriculum graph and learner-specific state. The curriculum includes courses, topics, subtopics, prerequisite edges, and lesson passages. The learner state includes knowledge evidence, quiz activity, agent runs, plan proposals, and saved progress.</p>
+<p>A simplified view of the shared graph looks like this:</p>
+<pre><code>(Course) ── curriculum ──&gt; (Topic) ── curriculum ──&gt; (Subtopic)
+                                                      │
+                                                 HAS_CHUNK
+                                                      ↓
+                                                   (Chunk)
+
+(Subtopic) ── PREREQUISITE_OF ──&gt; (Subtopic)</code></pre>
+<p>The curriculum arrows above describe the hierarchy conceptually; HAS_CHUNK and PREREQUISITE_OF are relationship names used by the application. Learner state is stored separately from the shared curriculum so one student&#x27;s progress does not alter the course for everyone else.</p>
+<p>Firebase Authentication verifies identity. The backend uses that verified UID to scope learner data. FalkorDB holds the planning context and persistent learning records. Keeping those responsibilities explicit helped us reason about returning users and saved plans.</p>
+<h2>Following a goal backwards through the graph</h2>
+<p>The planner first resolves a goal to curriculum subtopics. It retrieves the learner&#x27;s current state and then finds the prerequisite closure for the target.</p>
+<p>Here is the core traversal pattern from our implementation, with the relationship filters expanded for readability:</p>
+<pre><code>MATCH (t:Subtopic)
+WHERE t.id IN $targets
+MATCH p=(pre:Subtopic)-[:PREREQUISITE_OF*1..20]-&gt;(t)
+WHERE NOT pre.id IN $mastered
+  AND all(r IN relationships(p)
+    WHERE r.status IN [&#x27;curated&#x27;, &#x27;approved&#x27;]
+      AND coalesce(r.scope, &#x27;&#x27;) &lt;&gt; &#x27;course&#x27;)
+  AND all(n IN nodes(p)[1..size(nodes(p))-1]
+    WHERE NOT n.id IN $mastered)
+RETURN DISTINCT pre.id, pre.title, pre.estimated_minutes,
+                pre.topic_order, pre.order</code></pre>
+<p>Targets and mastered IDs are bound parameters. The query limits prerequisite paths to 20 hops and filters the relationship status and scope. The implementation also adds an unmastered target itself to the result.</p>
+<p>There is an important modeling choice here: a mastered intermediate lesson cuts the traversal along that path. This treats recorded mastery of that lesson as sufficient evidence for its earlier foundations. That is a prototype assumption we would want to evaluate with actual learners.</p>
+<p>The query is in <a href="https://github.com/wmd-graph-hacks/wmd_oct15/blob/main/app/kg/queries.py">app/kg/queries.py</a>, alongside the other graph retrieval functions.</p>
+<h2>Turning retrieved context into a plan</h2>
+<p>Retrieving prerequisites is the first step. We then use the retrieved graph to produce a practical order and estimate the work involved.</p>
+<ul>
+<li><strong>Dependency order:</strong> Python applies Kahn&#x27;s topological sort to the relevant graph, using curriculum order to break ties.</li>
+<li><strong>Gatekeepers:</strong> the planner identifies concepts that support later parts of the required learning path.</li>
+<li><strong>Critical path:</strong> an application-side algorithm calculates the longest prerequisite chain using estimated lesson durations.</li>
+<li><strong>Feasibility:</strong> total estimated study time is compared with the learner&#x27;s hours per week and weeks available.</li>
+</ul>
+<p>FalkorDB provides the nodes, relationships, and learner evidence. The controller coordinates retrieval and application-side calculations through named tools. We are careful about that distinction: the database supplies the connected context; the scheduling and graph calculations also include Python logic.</p>
+<p>For the demo, we use a synthetic learner called Alex with explicitly seeded mathematics history. We ask for a plan for KKT conditions with six hours a week and twelve weeks available. The planner uses Alex&#x27;s saved knowledge state to determine which foundations remain.</p>
+<p>The screen shows the retrieved dependency map and a tool trace. You can see which targets were resolved, which prerequisites were needed, and how the planning tools were called. That visibility was a big part of what we wanted to build.</p>
+<p><img src="assets/planning-graph.png" alt="The real Studyspace prerequisite map during the synthetic-learner demo" loading="lazy"></p>
+<h2>The agent proposes; the student approves</h2>
+<p>We separated generating a plan from committing it.</p>
+<p>Both the optional LLM controller and the deterministic controller call the same tool layer. They can propose a plan. Activating that proposal requires the student&#x27;s approval through a separate endpoint.</p>
+<p>After approval, the dashboard shows the saved lessons and progress. “Continue learning” opens the next unstudied lesson. On a later visit, the student can pick up from the saved plan.</p>
+<p>We also kept two facts separate: <strong>studied</strong> and <strong>mastered</strong>. Marking a lesson as studied records that the learner worked through it. Quiz evidence updates the mastery estimate. Clicking a completion button should not silently become proof of understanding.</p>
+<p>Saved-plan reads and writes are scoped to the signed-in learner. Completion is idempotent, so repeating the same action does not add duplicate progress.</p>
+<h2>Where the LLM fits</h2>
+<p>The optional Gemini integration uses LiteLLM and the graph tool layer. The controller is instructed to work with retrieved curriculum IDs and evidence, and the backend validates the proposed output.</p>
+<p>If the provider is unavailable or the output fails validation, a deterministic playbook runs the graph workflow. That path is also useful for debugging, because the sequence of tool calls is easier to reproduce.</p>
+<p><strong>The recorded demo uses the deterministic controller.</strong> It shows real application endpoints and FalkorDB data with a synthetic learner. It does not present a staged model response as a live LLM run. The Google sign-in interface is shown, but the recording uses an isolated development demo session rather than recording a personal Google consent flow.</p>
+<p>Studyspace also includes a tutor that retrieves lesson passages and expands context over prerequisites. With AI enabled, the answer must cite retrieved passages. An extractive fallback is available when a generated answer cannot be accepted. This helps keep the tutor tied to the supplied curriculum, although it does not make the curriculum automatically correct.</p>
+<h2>What took more care than we expected</h2>
+<p>The graph model was only part of the work. We also had to connect authentication, first-time onboarding, saved plans, and lesson progress into a coherent product flow.</p>
+<p>A successful sign-in needs to lead somewhere useful. New users complete a profile; returning users get their saved dashboard. A plan needs an approval step, a lesson page, and a way to resume. Those details are what turn a planning response into a usable learning workflow.</p>
+<p>Another lesson was to be precise about data quality. The prototype contains nine subject areas, but content depth and prerequisite quality vary. Authored dependencies and inferred ordering are different kinds of evidence. A polished graph visualization does not establish that every edge is pedagogically sound.</p>
+<p>FalkorDB made the connections accessible to our application. We still have to take responsibility for the content and assumptions we put into that graph.</p>
+<h2>What we would improve next</h2>
+<p>The next step is to evaluate the learning path with real students and subject experts. We would review prerequisite edges, improve lesson and question quality, and measure whether recommendations help learners make progress.</p>
+<p>We also want stronger handling of uncertain mastery, more useful diagnostics for graph-data issues, and better feedback when a goal cannot be resolved to the available curriculum. Scheduling estimates should eventually account for individual pace rather than treating lesson durations as fixed.</p>
+<p>We have not established learning-outcome gains or production-scale performance. This is a working hackathon prototype, and those are questions for further evaluation.</p>
+<h2>What we are taking away from the hackathon</h2>
+<p>The most useful part of FalkorDB for this project was being able to connect a goal, its foundations, and a learner&#x27;s evidence in an inspectable workflow. That context supports the explanation, the plan, and the student&#x27;s next action.</p>
+<p>For us, the satisfying moment was seeing the whole loop work: enter a goal, follow the prerequisite graph, approve a plan, study a lesson, and return to saved progress.</p>
+<p>There is plenty left to improve. But Studyspace now has a concrete answer to the question we started with: “What should I learn next, and why?”</p>
+<h2>Try it locally</h2>
+<p>The public repository includes setup instructions, configuration notes, graph queries, and the application source. A local FalkorDB instance is required for the standard setup.</p>
+<pre><code>git clone https://github.com/wmd-graph-hacks/wmd_oct15.git
+cd wmd_oct15
+cp .env.example .env
+docker compose up -d falkordb
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+uvicorn app.main:app --reload</code></pre>
+<p>Set AUTH_MODE=demo and AI_ENABLED=false in your local .env for the deterministic local walkthrough. Open http://localhost:8000. Google sign-in and optional Gemini calls require the additional configuration documented in the project README. Never publish API keys or service-account credentials.</p>
+<h2>Links and disclosure</h2>
+<p><a href="https://github.com/wmd-graph-hacks/wmd_oct15">Source and setup</a> · <a href="https://youtu.be/HcYy9IaRaig">Demo video</a> · <a href="https://www.falkordb.com/">FalkorDB</a> · <a href="https://www.wemakedevs.org/hackathons/falkordb/rules">Graph Hacks rules</a></p>
+<p>This post documents our Graph Hacks project. AI tools assisted with coding, debugging, drafting this article, and producing demo narration and cover artwork. The technical descriptions are grounded in the implementation; the demo learner and its initial history are synthetic. This is a hackathon submission, and no prize or endorsement is implied.</p></article></main><footer>Studyspace · Built for Graph Hacks · <a href="https://github.com/wmd-graph-hacks/wmd_oct15">Project source</a> · <a href="https://youtu.be/HcYy9IaRaig">Watch the demo</a></footer></body></html>
